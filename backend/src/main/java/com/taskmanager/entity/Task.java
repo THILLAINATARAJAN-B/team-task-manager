@@ -30,18 +30,30 @@ public class Task {
     @Column(nullable = false)
     private TaskPriority priority;
 
+    @Column(name = "due_date")
     private LocalDate dueDate;
 
-    @Column(updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "completed_by_id")
+    private User completedBy;
+
+    @Transient
+    private String lastStatusChangeLog;
 
     @PrePersist
     public void prePersist() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        if (status == null) status = TaskStatus.TODO;
+        if (status == null)   status   = TaskStatus.TODO;
         if (priority == null) priority = TaskPriority.MEDIUM;
     }
 

@@ -16,6 +16,8 @@ public class TaskResponse {
     private LocalDate dueDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime completedAt;
+    private String completedByName;
     private Long projectId;
     private String projectName;
     private Long assignedToId;

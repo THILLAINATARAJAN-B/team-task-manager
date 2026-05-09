@@ -9,23 +9,35 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @Query("SELECT t FROM Task t JOIN FETCH t.project JOIN FETCH t.createdBy " +
-           "LEFT JOIN FETCH t.assignedTo WHERE t.project.id = :projectId")
+           "LEFT JOIN FETCH t.assignedTo LEFT JOIN FETCH t.completedBy " +
+           "WHERE t.project.id = :projectId")
     List<Task> findByProjectId(@Param("projectId") Long projectId);
 
     @Query("SELECT t FROM Task t JOIN FETCH t.project JOIN FETCH t.createdBy " +
-           "LEFT JOIN FETCH t.assignedTo WHERE t.assignedTo = :user")
+           "LEFT JOIN FETCH t.assignedTo LEFT JOIN FETCH t.completedBy " +
+           "WHERE t.assignedTo = :user")
     List<Task> findByAssignedTo(@Param("user") User user);
 
     @Query("SELECT t FROM Task t JOIN FETCH t.project JOIN FETCH t.createdBy " +
-           "LEFT JOIN FETCH t.assignedTo " +
+           "LEFT JOIN FETCH t.assignedTo LEFT JOIN FETCH t.completedBy " +
            "WHERE t.assignedTo = :user AND t.dueDate < :today AND t.status <> 'DONE'")
     List<Task> findOverdueTasks(@Param("user") User user, @Param("today") LocalDate today);
 
     @Query("SELECT COUNT(t) FROM Task t WHERE t.project.id = :projectId AND t.status = :status")
     Long countByProjectIdAndStatus(@Param("projectId") Long projectId,
                                    @Param("status") TaskStatus status);
+
+    // ✅ NEW — fully loaded task for update/delete/status operations (no lazy exceptions)
+    @Query("SELECT t FROM Task t " +
+           "JOIN FETCH t.project p JOIN FETCH p.owner " +
+           "JOIN FETCH t.createdBy " +
+           "LEFT JOIN FETCH t.assignedTo " +
+           "LEFT JOIN FETCH t.completedBy " +
+           "WHERE t.id = :id")
+    Optional<Task> findByIdWithDetails(@Param("id") Long id);
 }

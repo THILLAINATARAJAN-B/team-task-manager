@@ -23,5 +23,5 @@ public class ProjectMember {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    private Role role; // ADMIN or MEMBER within a project
+    private Role role;
 }

@@ -34,7 +34,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // Skip if no Bearer token present
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -57,7 +56,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 }
             }
         } catch (JwtException | IllegalArgumentException e) {
-            // Invalid token — just continue without authentication (returns 401/403 naturally)
             logger.warn("Invalid JWT token: " + e.getMessage());
         }
 

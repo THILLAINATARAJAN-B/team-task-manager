@@ -26,35 +26,39 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(User currentUser) {
         List<Project> projects = projectRepository.findAllAccessibleProjects(currentUser);
-        List<Task> assignedTasks = taskRepository.findByAssignedTo(currentUser);
-        List<Task> overdueTasks = taskRepository.findOverdueTasks(currentUser, LocalDate.now());
+        List<Task>    myTasks  = taskRepository.findByAssignedTo(currentUser);
 
-        long completed = assignedTasks.stream()
-                .filter(t -> t.getStatus() == TaskStatus.DONE).count();
-        long inProgress = assignedTasks.stream()
-                .filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
-        long todo = assignedTasks.stream()
-                .filter(t -> t.getStatus() == TaskStatus.TODO).count();
+        // ✅ Overdue counted across ALL accessible project tasks, not just assigned-to-me
+        long overdue = projects.stream()
+                .flatMap(p -> taskRepository.findByProjectId(p.getId()).stream())
+                .filter(t -> t.getDueDate() != null
+                        && t.getDueDate().isBefore(LocalDate.now())
+                        && t.getStatus() != TaskStatus.DONE)
+                .count();
 
-        List<TaskResponse> recentTasks = assignedTasks.stream()
+        long completed  = myTasks.stream().filter(t -> t.getStatus() == TaskStatus.DONE).count();
+        long inProgress = myTasks.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
+        long todo       = myTasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO).count();
+
+        List<TaskResponse> recentTasks = myTasks.stream()
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .limit(5)
-                .map(t -> taskService.toResponseDirect(t))
+                .map((Task t) -> taskService.toResponseDirect(t))
                 .collect(Collectors.toList());
 
         List<ProjectResponse> recentProjects = projects.stream()
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .limit(5)
-                .map(p -> projectService.toResponseDirect(p))
+                .map((Project p) -> projectService.toResponseDirect(p))
                 .collect(Collectors.toList());
 
         return DashboardResponse.builder()
                 .totalProjects(projects.size())
-                .totalTasks(assignedTasks.size())
+                .totalTasks(myTasks.size())
                 .completedTasks((int) completed)
                 .inProgressTasks((int) inProgress)
                 .todoTasks((int) todo)
-                .overdueTasks(overdueTasks.size())
+                .overdueTasks((int) overdue)
                 .recentTasks(recentTasks)
                 .recentProjects(recentProjects)
                 .build();

@@ -24,15 +24,15 @@ public class AuthService {
 
     public AuthResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new IllegalArgumentException("Email already registered"); // ✅ 400 not 500
         }
 
         Role role = (request.getRole() != null && request.getRole().equalsIgnoreCase("ADMIN"))
                 ? Role.ADMIN : Role.MEMBER;
 
         User user = User.builder()
-                .fullName(request.getFullName())
-                .email(request.getEmail())
+                .fullName(request.getFullName().trim())
+                .email(request.getEmail().trim().toLowerCase())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .build();

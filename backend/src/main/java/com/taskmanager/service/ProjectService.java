@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,7 +31,7 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public ProjectResponse getProjectById(Long id, User currentUser) {
-        Project project = projectRepository.findById(id)
+        Project project = projectRepository.findByIdWithOwner(id)  // ✅ eager owner load
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         validateAccess(project, currentUser);
         return toResponseDirect(project);
@@ -40,8 +40,9 @@ public class ProjectService {
     @Transactional
     public ProjectResponse createProject(ProjectRequest request, User currentUser) {
         Project project = Project.builder()
-                .name(request.getName())
-                .description(request.getDescription())
+                .name(request.getName().trim())
+                .description(request.getDescription() != null
+                        ? request.getDescription().trim() : null)
                 .deadline(request.getDeadline())
                 .owner(currentUser)
                 .build();
@@ -66,15 +67,17 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse updateProject(Long id, ProjectRequest request, User currentUser) {
-        Project project = projectRepository.findById(id)
+        Project project = projectRepository.findByIdWithOwner(id)  // ✅
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
 
         if (!project.getOwner().getId().equals(currentUser.getId())
                 && !currentUser.getRole().equals(Role.ADMIN)) {
-            throw new UnauthorizedException("Only project owner or admin can update");
+            throw new UnauthorizedException("Only project owner or admin can update this project");
         }
-        project.setName(request.getName());
-        project.setDescription(request.getDescription());
+
+        project.setName(request.getName().trim());
+        project.setDescription(request.getDescription() != null
+                ? request.getDescription().trim() : null);
         project.setDeadline(request.getDeadline());
         projectRepository.save(project);
         return toResponseDirect(project);
@@ -82,40 +85,66 @@ public class ProjectService {
 
     @Transactional
     public void deleteProject(Long id, User currentUser) {
-        Project project = projectRepository.findById(id)
+        Project project = projectRepository.findByIdWithOwner(id)  // ✅
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
-        if (!project.getOwner().getId().equals(currentUser.getId())
-                && !currentUser.getRole().equals(Role.ADMIN)) {
-            throw new UnauthorizedException("Only project owner or admin can delete");
+
+        boolean isOwner = project.getOwner().getId().equals(currentUser.getId());
+        boolean isGlobalAdmin = currentUser.getRole().equals(Role.ADMIN);
+
+        if (!isOwner && !isGlobalAdmin) {
+            throw new UnauthorizedException("Only the project owner can delete this project");
         }
         projectRepository.delete(project);
     }
 
     @Transactional
     public ProjectResponse addMember(Long projectId, Long userId, User currentUser) {
-        Project project = projectRepository.findById(projectId)
+        Project project = projectRepository.findByIdWithOwner(projectId)  // ✅
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+
         if (!project.getOwner().getId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only project owner can add members");
         }
+
         User userToAdd = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (!projectMemberRepository.existsByProjectAndUser(project, userToAdd)) {
-            projectMemberRepository.save(ProjectMember.builder()
-                    .project(project).user(userToAdd).role(Role.MEMBER).build());
+
+        if (projectMemberRepository.existsByProjectAndUser(project, userToAdd)) {
+            throw new IllegalArgumentException(  // ✅ 400 not 500
+                userToAdd.getFullName() + " is already a member of this project");
         }
+
+        projectMemberRepository.save(ProjectMember.builder()
+                .project(project).user(userToAdd).role(Role.MEMBER).build());
+
         return toResponseDirect(project);
     }
 
     @Transactional
     public void removeMember(Long projectId, Long userId, User currentUser) {
-        Project project = projectRepository.findById(projectId)
+        Project project = projectRepository.findByIdWithOwner(projectId)  // ✅
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+
         if (!project.getOwner().getId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only project owner can remove members");
         }
+
+        if (userId.equals(currentUser.getId())) {
+            throw new IllegalArgumentException("Project owner cannot remove themselves");  // ✅ 400
+        }
+
         User userToRemove = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        taskRepository.findByProjectId(projectId)
+                .stream()
+                .filter(t -> t.getAssignedTo() != null
+                        && t.getAssignedTo().getId().equals(userId))
+                .forEach(t -> {
+                    t.setAssignedTo(null);
+                    taskRepository.save(t);
+                });
+
         projectMemberRepository.deleteByProjectAndUser(project, userToRemove);
     }
 
@@ -127,7 +156,6 @@ public class ProjectService {
         }
     }
 
-    // Public so DashboardService can call it within same transaction
     public ProjectResponse toResponseDirect(Project project) {
         List<Task> tasks = taskRepository.findByProjectId(project.getId());
         long completedTasks = tasks.stream()

@@ -1,12 +1,13 @@
 package com.taskmanager.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.taskmanager.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -42,9 +43,6 @@ public class User implements UserDetails {
     public void prePersist() {
         createdAt = LocalDateTime.now();
     }
-
-    // Do NOT initialize these in @Builder — use @Builder.Default
-
 
     @JsonIgnore
     @Builder.Default

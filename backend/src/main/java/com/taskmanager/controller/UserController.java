@@ -1,6 +1,7 @@
 package com.taskmanager.controller;
 
 import com.taskmanager.entity.User;
+import com.taskmanager.enums.Role;
 import com.taskmanager.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,16 +22,42 @@ public class UserController {
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAllUsers(
             @AuthenticationPrincipal User currentUser) {
+
+        boolean isAdmin = currentUser.getRole().equals(Role.ADMIN);
+
         List<Map<String, Object>> users = userRepository.findAll()
                 .stream()
-                .filter(u -> !u.getId().equals(currentUser.getId())) // exclude self
-                .map(u -> Map.of(
-                        "userId", (Object) u.getId(),
-                        "fullName", u.getFullName(),
-                        "email", u.getEmail(),
-                        "role", u.getRole().name()
-                ))
+                .filter(u -> !u.getId().equals(currentUser.getId()))
+                .map(u -> {
+                    if (isAdmin) {
+                        return Map.<String, Object>of(
+                                "userId",   u.getId(),
+                                "fullName", u.getFullName(),
+                                "email",    u.getEmail(),
+                                "role",     u.getRole().name()
+                        );
+                    } else {
+                        return Map.<String, Object>of(
+                                "userId",   u.getId(),
+                                "fullName", u.getFullName(),
+                                "role",     u.getRole().name()
+                        );
+                    }
+                })
                 .collect(Collectors.toList());
+
         return ResponseEntity.ok(users);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getMe(
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(Map.of(
+                "userId",    currentUser.getId(),
+                "fullName",  currentUser.getFullName(),
+                "email",     currentUser.getEmail(),
+                "role",      currentUser.getRole().name(),
+                "createdAt", currentUser.getCreatedAt()
+        ));
     }
 }
