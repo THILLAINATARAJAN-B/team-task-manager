@@ -8,7 +8,7 @@ import './index.css'
 import { AuthProvider } from './context/AuthContext.jsx'
 import ErrorBoundary from './components/ui/ErrorBoundary.jsx'
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } }
 })
 
